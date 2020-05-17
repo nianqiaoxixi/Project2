@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -64,7 +63,7 @@ int solution(int i, std::string path, std::string outpath) {
                         outs.push_back(temp.substr(0, index1));
                     }
                     else {
-                    	grad_to.push_back(temp.substr(0, index1));
+                        grad_to.push_back(temp.substr(0, index1));
                     }
                     temp = temp.substr(index1 + 1);
                     index0 = temp.find("\"");
@@ -121,20 +120,5 @@ int main() {
         std::string outpath = kernelPath + std::to_string(i) + ".cc";
         solution(i, path, outpath);
     }
-=======
-// this is a silly solution
-// just to show you how different
-// components of this framework work
-// please bring your wise to write
-// a 'real' solution :)
-
-#include <iostream>
-#include <fstream>
-#include <string>
-
-
-int main() {
-    /* add your solutions */
->>>>>>> 3e5ac3ccec1e739f7c0e410878734b437e4372c1
     return 0;
 }
