@@ -2,6 +2,10 @@
  * MIT License
  * 
  * Copyright (c) 2020 Size Zheng
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3e5ac3ccec1e739f7c0e410878734b437e4372c1
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -36,12 +40,18 @@ namespace Internal {
 
 class IRPrinter : public IRVisitor {
  public:
+<<<<<<< HEAD
     bool global_flag;
+=======
+>>>>>>> 3e5ac3ccec1e739f7c0e410878734b437e4372c1
     IRPrinter() : IRVisitor() {
         indent = 0;
         print_range = false;
         print_arg = false;
+<<<<<<< HEAD
         global_flag = false;
+=======
+>>>>>>> 3e5ac3ccec1e739f7c0e410878734b437e4372c1
     }
     std::string print(const Expr&);
     std::string print(const Stmt&);

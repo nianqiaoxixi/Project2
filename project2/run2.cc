@@ -538,4 +538,8 @@ int main() {
     std::cout << "Totally pass " << num_pass << " out of 10 cases.\n";
     std::cout << "Score is " << score[num_pass] << ".\n";
     return 0;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 3e5ac3ccec1e739f7c0e410878734b437e4372c1

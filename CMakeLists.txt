@@ -83,8 +83,16 @@ add_subdirectory(project1)
 add_subdirectory(project2)
 
 # JSON targets.
+<<<<<<< HEAD
 #add_subdirectory("3rdparty/jsoncpp"
     #${CMAKE_CURRENT_BINARY_DIR}/jsoncpp-build
     #EXCLUDE_FROM_ALL)
 
 #target_link_libraries(${LIB_NAME} jsoncpp_lib)
+=======
+add_subdirectory("3rdparty/jsoncpp"
+    ${CMAKE_CURRENT_BINARY_DIR}/jsoncpp-build
+    EXCLUDE_FROM_ALL)
+
+target_link_libraries(${LIB_NAME} jsoncpp_lib)
+>>>>>>> 3e5ac3ccec1e739f7c0e410878734b437e4372c1

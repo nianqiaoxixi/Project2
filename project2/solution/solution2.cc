@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -120,5 +121,20 @@ int main() {
         std::string outpath = kernelPath + std::to_string(i) + ".cc";
         solution(i, path, outpath);
     }
+=======
+// this is a silly solution
+// just to show you how different
+// components of this framework work
+// please bring your wise to write
+// a 'real' solution :)
+
+#include <iostream>
+#include <fstream>
+#include <string>
+
+
+int main() {
+    /* add your solutions */
+>>>>>>> 3e5ac3ccec1e739f7c0e410878734b437e4372c1
     return 0;
 }
