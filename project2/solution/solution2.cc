@@ -23,30 +23,31 @@ class MyMutator : public IRMutator {
     //std::vector<std::string> grad;
     std::string grad;
     int index_use;
-    int flag;
-    int transfer;
+    int mode; 
+    bool if_remove;
     std::map<std::string, Expr> match;
     Ref<const Index> index_temp;
     Expr global_index;
+    std::vector<Expr> new_indexs;
     MyMutator(std::string _out, std::string _grad): IRMutator() {
-        flag = 0;
-        transfer = 0;
+        mode = 0;
         out = _out;
         grad = _grad;
         index_use = 0;
+        if_remove = false;
     }
     Expr visit(Ref<const Var> op) override {
         if (op->name == grad) {
-            if (flag == 1) {
+            if (mode == 1) {
                 std::vector<Expr> new_args;
                 for (auto arg : op->args) {
-                    transfer = 1;
+                    mode = 3;
                     new_args.push_back(mutate(arg));
                 }
-                transfer = 0;
+                mode = 1;
                 src_change = Var::make(op->type(), ("d" + grad), new_args, op->shape);
             }
-            else if (flag == 2){
+            else if (mode == 2){
                 return dst_change;
             }
             else {
@@ -54,10 +55,10 @@ class MyMutator : public IRMutator {
             }
         }
         else if (op->name == out) {
-            if (flag == 1) {
+            if (mode == 1) {
                 dst_change = Var::make(op->type(), ("d" + out), op->args, op->shape);
             }
-            else if (flag == 2){
+            else if (mode == 2){
                 return src_change;
             }
             else {
@@ -69,11 +70,17 @@ class MyMutator : public IRMutator {
 
 
     Expr visit(Ref<const Index> op) override {
-        if (transfer == 1) {
+        if (mode == 3) {
             index_temp = op;
         }
-        else if (transfer == 2) {
+        else if (mode == 4) {
             match[op->name] = global_index;
+        }
+        else if (mode == 5) {
+            if (match.find(op->name) != match.end()) {
+                if_remove = true;
+                return IRMutator::visit(op);
+            }
         }
         if (match.find(op->name) != match.end()) {
             return match[op->name];
@@ -82,15 +89,16 @@ class MyMutator : public IRMutator {
     }
 
     Expr visit(Ref<const Binary> op) override {
-        if (transfer == 1) {
+        if (mode == 3) {
             if (op->op_type == BinaryOpType::Add) {
                 mutate(op->a);
                 Expr new_index = Index::make(index_temp->type(), index_pool[index_use++], 
                     index_temp->dom, index_temp->index_type);
+                new_indexs.push_back(new_index);
                 global_index = Binary::make(index_temp->type(), BinaryOpType::Sub, new_index, index_temp);
-                transfer = 2;
+                mode = 4;
                 mutate(op->b);
-                transfer = 0;
+                mode = 1;
                 return new_index;
             }
         }
@@ -98,17 +106,38 @@ class MyMutator : public IRMutator {
     }
 
     Stmt visit(Ref<const Move> op) override {
-        flag = 1;
+        mode = 1;
         mutate(op->src);
         mutate(op->dst);
-        flag = 2;
+        mode = 2;
         Expr new_src = mutate(op->src);
         Expr new_dst = mutate(op->dst);
-        flag = 0;
+        mode = 0;
         return Move::make(new_dst, new_src, op->move_type);
         //return IRMutator::visit(op);
     }
 
+    Stmt visit(Ref<const LoopNest> op) override {
+        std::vector<Expr> new_index_list;
+        std::vector<Stmt> new_body_list;
+        for (auto body : op->body_list) {
+            new_body_list.push_back(mutate(body));
+        }
+        for (auto index : op->index_list) {
+            mode = 5;
+            Expr expr = mutate(index);
+            if (!if_remove) {
+                new_index_list.push_back(expr);
+            }
+            else {
+                if_remove = false;
+            }
+        }
+        for (auto index : new_indexs) {
+            new_index_list.push_back(index);
+        }
+        return LoopNest::make(new_index_list, new_body_list);
+    }
 };
 
 int solution(int i, std::string path, std::string outpath) {
