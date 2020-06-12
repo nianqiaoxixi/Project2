@@ -15,6 +15,190 @@
 using namespace Boost::Internal;
 
 std::string index_pool[3] = {"h", "w", "t"};
+class MyPrinter : public IRPrinter {
+ public:
+    int op_flag;
+    bool index_flag;
+    MyPrinter() : IRPrinter() {
+        op_flag = -1;
+        index_flag = false;
+    }
+    void visit(Ref<const Var> op) {
+        if (global_flag) {
+            if (op->type().is_float()) {
+                oss << "float ";
+            }
+            else {
+                oss << "int ";
+            }
+        }
+        oss << op->name;
+        if ((op->shape)[0] == 1) {
+        }
+        else {    
+            for (size_t i = 0; i < op->args.size(); ++i) {
+                oss << "[";
+                index_flag = true;
+                op->args[i].visit_expr(this);
+                oss << "]";
+            }
+            index_flag = false;
+        }
+    }
+    void visit(Ref<const Binary> op) {
+        oss << "(";
+        (op->a).visit_expr(this);
+        if (op->op_type == BinaryOpType::Add) {
+            op_flag = 0;
+            oss << " + ";
+        } else if (op->op_type == BinaryOpType::Sub) {
+            op_flag = 0;
+            oss << " - ";
+        } else if (op->op_type == BinaryOpType::Mul) {
+            op_flag = 1;
+            oss << " * ";
+        } else if (op->op_type == BinaryOpType::Div) {
+            op_flag = 1;
+            oss << " / ";
+        } else if (op->op_type == BinaryOpType::Mod) {
+            op_flag = 1;
+            oss << " % ";
+        } else if (op->op_type == BinaryOpType::And) {
+            op_flag = 2;
+            oss << " && ";
+        } else if (op->op_type == BinaryOpType::Or) {
+            op_flag = 2;
+            oss << " || ";
+        }
+        (op->b).visit_expr(this);
+        oss << ")";
+    }
+    void visit(Ref<const IntImm> op) {
+        if ((op_flag == 0)&&(index_flag == false))
+            oss << "0.0";
+        else
+            oss << op->value();
+    }
+
+
+    void visit(Ref<const UIntImm> op) {
+        if ((op_flag == 0)&&(index_flag == false))
+            oss << "0.0";
+        else
+            oss << op->value();
+    }
+
+
+    void visit(Ref<const FloatImm> op) {
+        if ((op_flag == 0)&&(index_flag == false))
+            oss << "0.0";
+        else
+            oss << op->value();
+    }
+
+    void visit(Ref<const Kernel> op) {
+        print_indent();
+        std::string str = "d";
+        oss << "void " << op->name << "(";
+        print_arg = true;
+        size_t num1 = 0;
+        size_t num2 = 0;
+        for (size_t i = 0; i < op->inputs.size(); ++i) {
+            if (((op->inputs[i]).as<Var>()->name).at(0) != str.at(0)) {
+                if (op->inputs[i].type().is_float()) {
+                    oss << "float";
+                }
+                if (op->inputs[i].type().is_int()) {
+                    oss << "int";
+                }
+                oss << " (&";
+                oss << (op->inputs[i]).as<Var>()->name;
+                oss << ")";
+                if (((op->inputs[i]).as<Var>()->shape[0]) == 1) {
+
+                }
+                else {
+                    for (size_t j = 0; j < (op->inputs[i]).as<Var>()->shape.size(); ++j) {
+                        oss << "[" << (op->inputs[i]).as<Var>()->shape[j] << "]";
+                    }
+                } 
+                num1++;
+                oss << ", ";
+            }
+        }
+        for (size_t i = 0; i < op->outputs.size(); ++i) {
+            bool flag = false;
+            for (size_t j = 0; j < op->inputs.size(); ++j) {
+                if ((op->outputs[i]).as<Var>()->name == (op->inputs[j]).as<Var>()->name) {
+                    flag = true;
+                    break;
+                }
+            }
+            if (flag) {
+                continue;
+            }
+            if (op->outputs[i].type().is_float()) {
+                oss << "float";
+            }
+            if (op->outputs[i].type().is_int()) {
+                oss << "int";
+            }
+            oss << " (&";
+            oss << (op->outputs[i]).as<Var>()->name;
+            oss << ") ";
+            if (((op->outputs[i]).as<Var>()->shape[0]) == 1) {
+
+            }
+            else {
+                for (size_t j = 0; j < (op->outputs[i]).as<Var>()->shape.size(); ++j) {
+                    oss << "[" << (op->outputs[i]).as<Var>()->shape[j] << "]";
+                }
+            }
+            if (i < op->outputs.size() - 1) {
+                oss << ", ";
+            }
+        }
+        if (num1 == op->inputs.size()) {
+
+        }
+        else {
+            oss << ", ";
+        }
+        for (size_t i = 0; i < op->inputs.size(); ++i) {
+            if (((op->inputs[i]).as<Var>()->name).at(0) == str.at(0)) {
+                num2++;
+                if (op->inputs[i].type().is_float()) {
+                    oss << "float";
+                }
+                if (op->inputs[i].type().is_int()) {
+                    oss << "int";
+                }
+                oss << " (&";
+                oss << (op->inputs[i]).as<Var>()->name;
+                oss << ")";
+                if (((op->inputs[i]).as<Var>()->shape[0]) == 1) {
+
+                }
+                else {
+                    for (size_t j = 0; j < (op->inputs[i]).as<Var>()->shape.size(); ++j) {
+                        oss << "[" << (op->inputs[i]).as<Var>()->shape[j] << "]";
+                    }
+                }
+                if(num2 < (op->inputs.size() - num1)){
+                    oss << ", ";
+                }
+            }
+        }
+        print_arg = false;
+        oss << ") {\n";
+        enter();
+        for (auto stmt : op->stmt_list) {
+            stmt.visit_stmt(this);
+        }
+        exit();
+        oss << "}\n";
+    }
+};
 class MyMutator : public IRMutator {
  public:
     Expr src_change;
@@ -225,7 +409,7 @@ int solution(int i, std::string path, std::string outpath) {
         main_code = mutator.mutate(main_code);
 
         // printer
-        IRPrinter printer;
+        MyPrinter printer;
         std::string code = printer.print(main_code);
 
         std::ofstream ofile(outpath, std::ios::out);

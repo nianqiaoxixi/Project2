@@ -37,6 +37,10 @@ namespace Internal {
 class IRPrinter : public IRVisitor {
  public:
     bool global_flag;
+    std::ostringstream oss;
+    int indent;
+    bool print_range;
+    bool print_arg;
     IRPrinter() : IRVisitor() {
         indent = 0;
         print_range = false;
@@ -79,10 +83,7 @@ class IRPrinter : public IRVisitor {
     void visit(Ref<const Move>) override;
     void visit(Ref<const Kernel>) override;
  private:
-    std::ostringstream oss;
-    int indent;
-    bool print_range;
-    bool print_arg;
+    
 };
 
 }  // namespace Internal
