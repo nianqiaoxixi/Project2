@@ -258,6 +258,17 @@ class MyMutator : public IRMutator {
                 return new_index;
             }
         }
+        if (op->op_type == BinaryOpType::Mul) {
+            if ((op->a).as<Var>() != nullptr && (op->b).as<Var>() != nullptr){
+                if ((op->a).as<Var>()->name == (op->b).as<Var>()->name) {
+                    mutate(op->a);
+                    mutate(op->b);
+                    input_var[(op->a).as<Var>()->name] = op->a;
+                    Expr new_expr = Binary::make((op->a).type(), BinaryOpType::Add, op->a, op->b);
+                    return Binary::make((op->a).type(), BinaryOpType::Mul, mutate(op->a), new_expr);
+                }
+            }
+        }
         return IRMutator::visit(op);
     }
 
@@ -453,7 +464,7 @@ int main() {
     std::string casePath = "./cases/case";
     std::string kernelPath = "./kernels/grad_case";
     for(int i = 1; i <= 10; i ++) {
-        if (i == 2 || i == 6 || i == 8 || i == 10)
+        if (i == 6 || i == 8 || i == 10)
             continue;
         std::string path = casePath + std::to_string(i) + ".json";
         std::string outpath = kernelPath + std::to_string(i) + ".cc";
