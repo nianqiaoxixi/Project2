@@ -99,109 +99,6 @@ class MyPrinter : public IRPrinter {
         else
             oss << op->value();
     }
-
-    void visit(Ref<const Kernel> op) {
-        print_indent();
-        std::string str = "d";
-        oss << "void " << op->name << "(";
-        print_arg = true;
-        size_t num1 = 0;
-        size_t num2 = 0;
-        for (size_t i = 0; i < op->inputs.size(); ++i) {
-            if (((op->inputs[i]).as<Var>()->name).at(0) != str.at(0)) {
-                if (op->inputs[i].type().is_float()) {
-                    oss << "float";
-                }
-                if (op->inputs[i].type().is_int()) {
-                    oss << "int";
-                }
-                oss << " (&";
-                oss << (op->inputs[i]).as<Var>()->name;
-                oss << ")";
-                if (((op->inputs[i]).as<Var>()->shape[0]) == 1) {
-
-                }
-                else {
-                    for (size_t j = 0; j < (op->inputs[i]).as<Var>()->shape.size(); ++j) {
-                        oss << "[" << (op->inputs[i]).as<Var>()->shape[j] << "]";
-                    }
-                } 
-                num1++;
-                oss << ", ";
-            }
-        }
-        for (size_t i = 0; i < op->outputs.size(); ++i) {
-            bool flag = false;
-            for (size_t j = 0; j < op->inputs.size(); ++j) {
-                if ((op->outputs[i]).as<Var>()->name == (op->inputs[j]).as<Var>()->name) {
-                    flag = true;
-                    break;
-                }
-            }
-            if (flag) {
-                continue;
-            }
-            if (op->outputs[i].type().is_float()) {
-                oss << "float";
-            }
-            if (op->outputs[i].type().is_int()) {
-                oss << "int";
-            }
-            oss << " (&";
-            oss << (op->outputs[i]).as<Var>()->name;
-            oss << ") ";
-            if (((op->outputs[i]).as<Var>()->shape[0]) == 1) {
-
-            }
-            else {
-                for (size_t j = 0; j < (op->outputs[i]).as<Var>()->shape.size(); ++j) {
-                    oss << "[" << (op->outputs[i]).as<Var>()->shape[j] << "]";
-                }
-            }
-            if (i < op->outputs.size() - 1) {
-                oss << ", ";
-            }
-        }
-        if (num1 == op->inputs.size()) {
-
-        }
-        else {
-            oss << ", ";
-        }
-        for (size_t i = 0; i < op->inputs.size(); ++i) {
-            if (((op->inputs[i]).as<Var>()->name).at(0) == str.at(0)) {
-                num2++;
-                if (op->inputs[i].type().is_float()) {
-                    oss << "float";
-                }
-                if (op->inputs[i].type().is_int()) {
-                    oss << "int";
-                }
-                oss << " (&";
-                oss << (op->inputs[i]).as<Var>()->name;
-                oss << ")";
-                if (((op->inputs[i]).as<Var>()->shape[0]) == 1) {
-
-                }
-                else {
-                    for (size_t j = 0; j < (op->inputs[i]).as<Var>()->shape.size(); ++j) {
-                        oss << "[" << (op->inputs[i]).as<Var>()->shape[j] << "]";
-                    }
-                }
-                if(num2 < (op->inputs.size() - num1)){
-                    oss << ", ";
-                }
-            }
-        }
-        print_arg = false;
-        oss << ") {\n";
-        enter();
-        for (auto stmt : op->stmt_list) {
-            stmt.visit_stmt(this);
-        }
-        exit();
-        oss << "}\n";
-    }
 };
 
 class MyMutator : public IRMutator {
@@ -442,7 +339,7 @@ class MyMutator : public IRMutator {
         }
         
         for (auto expr : op->outputs) {
-            new_outputs.push_back(mutate(expr));
+            new_inputs.push_back(mutate(expr));
         }
         
         for (auto expr : src_expr) {

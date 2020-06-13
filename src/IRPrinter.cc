@@ -295,7 +295,7 @@ void IRPrinter::visit(Ref<const Kernel> op) {
         if (op->inputs.size() == 0) {
 
         }
-        else {
+        else if (i == 0){
             oss << ", ";
         }
         if (op->outputs[i].type().is_float()) {
