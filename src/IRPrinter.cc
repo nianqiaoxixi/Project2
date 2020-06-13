@@ -105,6 +105,7 @@ void IRPrinter::visit(Ref<const Binary> op) {
 
 
 void IRPrinter::visit(Ref<const Compare> op) {
+    oss << "(";
     (op->a).visit_expr(this);
     if (op->op_type == CompareOpType::LT) {
         oss << " < ";
@@ -120,15 +121,18 @@ void IRPrinter::visit(Ref<const Compare> op) {
         oss << " != ";
     }
     (op->b).visit_expr(this);
+    oss << ")";
 }
 
 
 void IRPrinter::visit(Ref<const Select> op) {
+    oss << "(";
     (op->cond).visit_expr(this);
     oss << "? ";
     (op->true_value).visit_expr(this);
     oss << ": ";
     (op->false_value).visit_expr(this);
+    oss << ")";
 }
 
 
