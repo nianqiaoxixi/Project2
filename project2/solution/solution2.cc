@@ -74,16 +74,16 @@ class MyPrinter : public IRPrinter {
             op_flag = 1;
             oss << " * ";
         } else if (op->op_type == BinaryOpType::Div) {
-            op_flag = 1;
+            op_flag = 2;
             oss << " / ";
         } else if (op->op_type == BinaryOpType::Mod) {
-            op_flag = 1;
+            op_flag = 3;
             oss << " % ";
         } else if (op->op_type == BinaryOpType::And) {
-            op_flag = 2;
+            op_flag = 4;
             oss << " && ";
         } else if (op->op_type == BinaryOpType::Or) {
-            op_flag = 2;
+            op_flag = 4;
             oss << " || ";
         }
         (op->b).visit_expr(this);
@@ -391,8 +391,58 @@ class MyMutator : public IRMutator {
             new_dst = mutate(op->dst);
         }
         else {
-            new_src = Binary::make(data_type, BinaryOpType::Add, temp_expr, mutate(op->src));
-            new_dst = mutate(op->dst);
+            bool f = false;
+            if ((op->src).as<Var>() != nullptr && (op->dst).as<Var>() != nullptr) {
+                std::vector<Expr> indexList;
+                std::vector<size_t> shapeList;
+                for (size_t i = 0; i < (op->src).as<Var>()->args.size(); i++) {
+                    if (((op->src).as<Var>()->args[i]).as<Binary>() != nullptr) {
+                        if (((op->src).as<Var>()->args[i]).as<Binary>()->op_type == BinaryOpType::Div) {
+                            Expr new_dom=Dom::make(index_type,Expr(0),Expr((op->src).as<Var>()->shape[i]));
+                            Expr new_index = Index::make(index_type, (((op->src).as<Var>()->args[i]).as<Binary>()->a).as<Var>()->name, 
+                                new_dom, ((op->src).as<Var>()->args[i]).as<Index>()->index_type);
+                            indexList.push_back(new_index);
+                            shapeList.push_back((op->src).as<Var>()->shape[i]);
+                            f = true;
+                        }
+                        if (((op->src).as<Var>()->args[i]).as<Binary>()->op_type == BinaryOpType::Mod) {
+                            Expr new_dom=Dom::make(index_type,Expr(0),Expr((op->src).as<Var>()->shape[i]));
+                            Expr new_index = Index::make(index_type, "_" + ((((op->src).as<Var>()->args[i]).as<Binary>()->a).as<Var>()->name), 
+                                new_dom, ((op->src).as<Var>()->args[i]).as<Index>()->index_type);
+                            indexList.push_back(new_index);
+                            shapeList.push_back((op->src).as<Var>()->shape[i]);
+                        }
+                    }
+                    else {
+                        indexList.push_back((op->src).as<Var>()->args[i]);
+                        shapeList.push_back((op->src).as<Var>()->shape[i]);
+                    }
+                }
+                new_dst = Var::make(data_type, "d" + grad[grad_index], indexList, shapeList);
+                std::vector<Expr> indexList1;
+                std::vector<size_t> shapeList1;
+                for (size_t i = 0; i < (op->dst).as<Var>()->args.size(); i++) {
+                    if(f){
+                        Expr new_dom=Dom::make(index_type,Expr(0),Expr((op->dst).as<Var>()->shape[i]));
+                        Expr new_bi1 = Binary::make(data_type, BinaryOpType::Mul, (op->dst).as<Var>()->args[i], Expr(extend_num));
+                        Expr new_dom1=Dom::make(index_type,Expr(0),Expr(extend_num));
+                        Expr new_index = Index::make(index_type, "_" + ((((op->dst).as<Var>()->args[i]).as<Binary>()->a).as<Var>()->name), 
+                                new_dom1, ((op->dst).as<Var>()->args[i]).as<Index>()->index_type);
+                        Expr new_bi2 = Binary::make(data_type, BinaryOpType::Add, new_bi1, new_index);
+                        indexList.push_back(new_bi2);
+                        shapeList.push_back((op->dst).as<Var>()->shape[i]);
+                    }
+                    else {
+                        indexList.push_back((op->dst).as<Var>()->args[i]);
+                        shapeList.push_back((op->dst).as<Var>()->shape[i]);
+                    }
+                }
+                new_src = Var::make(data_type, "d" + out, indexList1, shapeList1);
+            }
+            else {
+                new_src = Binary::make(data_type, BinaryOpType::Add, temp_expr, mutate(op->src));
+                new_dst = mutate(op->dst);
+            }
         }
         mode = 0;
         return Move::make(new_dst, new_src, op->move_type);
@@ -434,14 +484,17 @@ class MyMutator : public IRMutator {
                     const_match.find(index.as<Index>()->name) != const_match.end()) {
             }
             else {
-                if(if_div && extend_num) {
-                    int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
-                    int now_num=pre_num*extend_num;
-                    Expr newexpr=Dom::make(index_type,(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
-                    index=Index::make(index_type,index.as<Index>()->name,newexpr,index.as<Index>()->index_type);            
-                }
                 new_index_list.push_back(index);
-        
+                if(if_div && extend_num) {
+                    //int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
+                    //int now_num=pre_num*extend_num;
+                    Expr new_dom=Dom::make(index.as<Index>()->type(),(index.as<Index>()->dom).as<Dom>()->begin,Expr(extend_num));
+                    Expr new_index = Index::make(index.as<Index>()->type(), "_" + ((index.as<Index>())->name), 
+                            new_dom, index.as<Index>()->index_type);
+                    new_index_list.push_back(new_index);
+                    //Expr newexpr=Dom::make(index_type,(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
+                    //index=Index::make(index_type,index.as<Index>()->name,newexpr,index.as<Index>()->index_type);            
+                }
             }
         }
     
