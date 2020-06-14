@@ -128,6 +128,8 @@ class MyMutator : public IRMutator {
     int grad_index;
     int mode;
     std::map<std::string, Expr> input_var;
+    Expr div_expr;
+    std::string div_name;
 
     int div_num;
     int which;
@@ -209,7 +211,7 @@ class MyMutator : public IRMutator {
                     Expr condition;
                     for (unsigned int i = 0; i < (dst->args).size(); i++) {
                         std::string name = (dst->args)[i].as<Index>()->name;
-                        if (new_indexs.find(name) != new_indexs.end()) {
+                        if (const_match.find(name) != const_match.end()) {
                             mode = 5;
                             Expr expr = mutate(origin_index[which][i]);
                             if (expr.as<Dom>() == nullptr) {
@@ -230,6 +232,9 @@ class MyMutator : public IRMutator {
                             else {
                                 new_args.push_back((dst->args)[i]);
                             }
+                        }
+                        else if (if_div && extend_num && name == div_name) {
+                            new_args.push_back(div_expr);
                         }
                         else {
                             new_args.push_back((dst->args)[i]);
@@ -299,6 +304,10 @@ class MyMutator : public IRMutator {
                 if_div=true;
                 if ((op->b).as<IntImm>() != nullptr) 
                     div_num=(op->b).as<IntImm>()->value();
+                div_name = (op->a).as<Index>()->name;
+                div_expr = Index::make(index_type, div_name, 
+                    (op->a).as<Index>()->dom, (op->a).as<Index>()->index_type);
+                return div_expr;
             }
             else if (op->op_type == BinaryOpType::Mod) {
                 int mod_num = 0;
@@ -307,6 +316,11 @@ class MyMutator : public IRMutator {
                 }
                 if(if_div && mod_num==div_num){
                     extend_num=div_num;
+                    Expr expr1 = Index::make(index_type, "_" + div_name,
+                        Dom::make(index_type, 0, extend_num), div_expr.as<Index>()->index_type);
+                    Expr expr2 = Binary::make(index_type, BinaryOpType::Mul, div_expr, Expr(extend_num));
+                    div_expr = Binary::make(index_type, BinaryOpType::Add, expr2, expr1);
+                    return expr1;
                 }
                 else {
                     extend_num=1;
@@ -391,6 +405,7 @@ class MyMutator : public IRMutator {
             new_dst = mutate(op->dst);
         }
         else {
+            /*
             bool f = false;
             if ((op->src).as<Var>() != nullptr && (op->dst).as<Var>() != nullptr) {
                 std::vector<Expr> indexList;
@@ -439,10 +454,10 @@ class MyMutator : public IRMutator {
                 }
                 new_src = Var::make(data_type, "d" + out, indexList1, shapeList1);
             }
-            else {
+            else {*/
                 new_src = Binary::make(data_type, BinaryOpType::Add, temp_expr, mutate(op->src));
                 new_dst = mutate(op->dst);
-            }
+            //}
         }
         mode = 0;
         return Move::make(new_dst, new_src, op->move_type);
