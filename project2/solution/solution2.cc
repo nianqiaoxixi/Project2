@@ -115,6 +115,7 @@ class MyMutator : public IRMutator {
     int grad_index;
     int mode;
     bool if_remove;
+    bool if_div;
     std::map<std::string, Expr> input_var;
 
     int index_use;
@@ -135,6 +136,7 @@ class MyMutator : public IRMutator {
         grad_index = 0;
         index_use = 0;
         if_remove = false;
+	if_div=false;
         data_type = _data_type;
         index_type = _index_type;
         Expr expr = Expr(0);
@@ -240,6 +242,11 @@ class MyMutator : public IRMutator {
 
     Expr visit(Ref<const Binary> op) override {
         if (mode == 3) {
+            if (op->op_type == BinaryOpType::Div) {
+            //if ((op->a).as<Var>() != nullptr && (op->b).as<Var>() != nullptr){
+                if_div=true;
+            	//}
+            }
             if (op->op_type == BinaryOpType::Add) {
                 //mutate(op->a);
                 if ((op->a).as<Index>() != nullptr) {
@@ -352,13 +359,19 @@ class MyMutator : public IRMutator {
                     extra_index.find(index.as<Index>()->name) != extra_index.end()) {
             }
             else {
+		if(if_div) {
+			Expr newexpr=Dom::make((index.as<Index>()->dom).as<Dom>()->type(),(index.as<Index>()->dom).as<Dom>()->begin,Expr(32));
+			index=Index::make(index.as<Index>()->type(),index.as<Index>()->name,newexpr,index.as<Index>()->index_type);			
+		}
                 new_index_list.push_back(index);
+		
             }
         }
-
+	
         for (it = new_indexs.begin(); it != new_indexs.end(); it++) {
-            new_index_list.push_back(it->second);
+            	new_index_list.push_back(it->second);
         }
+	
         return LoopNest::make(new_index_list, new_body_list);
     }
 

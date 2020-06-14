@@ -218,9 +218,8 @@ class GroupNode : public IRNode {
  * inherited from Halide
  */ 
 class IntImm : public ExprNode, public std::enable_shared_from_this<IntImm> {
- private:
-    int64_t value_;
  public:
+    int64_t value_;
     IntImm(Type _type, const int64_t _value) : ExprNode(_type, IRNodeType::IntImm), value_(_value)  {}
 
     /**
@@ -229,7 +228,10 @@ class IntImm : public ExprNode, public std::enable_shared_from_this<IntImm> {
     int64_t value() const {
         return value_;
     }
-
+    void value_change(const int64_t k)
+    {
+    	value_=value_*k;
+    }
     Expr mutate_expr(IRMutator *mutator) const;
     void visit_node(IRVisitor *visitor) const;
 
@@ -245,7 +247,7 @@ class IntImm : public ExprNode, public std::enable_shared_from_this<IntImm> {
  * inherited from Halide
  */ 
 class UIntImm : public ExprNode, public std::enable_shared_from_this<UIntImm> {
- private:
+ public:
     uint64_t value_;
  public:
     UIntImm(Type _type, const uint64_t _value) : ExprNode(_type, IRNodeType::UIntImm), value_(_value) {}
@@ -272,7 +274,7 @@ class UIntImm : public ExprNode, public std::enable_shared_from_this<UIntImm> {
  * inherited from Halide
  */ 
 class FloatImm : public ExprNode, public std::enable_shared_from_this<FloatImm> {
- private:
+ public:
     double value_;
  public:
     FloatImm(Type _type, const double _value) : ExprNode(_type, IRNodeType::FloatImm), value_(_value) {}
@@ -299,7 +301,7 @@ class FloatImm : public ExprNode, public std::enable_shared_from_this<FloatImm> 
  * inherited from Halide
  */ 
 class StringImm : public ExprNode, public std::enable_shared_from_this<StringImm> {
- private:
+ public:
     std::string value_;
  public:
     StringImm(Type _type, const std::string _value) :
