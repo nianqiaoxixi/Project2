@@ -114,6 +114,8 @@ class MyMutator : public IRMutator {
     std::vector<std::string> grad;
     int grad_index;
     int mode;
+    int div_num;
+    int extend_num;
     bool if_remove;
     bool if_div;
     std::map<std::string, Expr> input_var;
@@ -134,6 +136,7 @@ class MyMutator : public IRMutator {
             src_expr.push_back(Expr(0));
         }
         grad_index = 0;
+	div_num=0;
         index_use = 0;
         if_remove = false;
 	if_div=false;
@@ -243,9 +246,13 @@ class MyMutator : public IRMutator {
     Expr visit(Ref<const Binary> op) override {
         if (mode == 3) {
             if (op->op_type == BinaryOpType::Div) {
-            //if ((op->a).as<Var>() != nullptr && (op->b).as<Var>() != nullptr){
                 if_div=true;
-            	//}
+		div_num=(op->b).as<IntImm>()->value();
+            }
+	    if (op->op_type == BinaryOpType::Mod) {
+                int mod_num=(op->b).as<IntImm>()->value();
+		if(if_div && mod_num==div_num)
+			extend_num=div_num;
             }
             if (op->op_type == BinaryOpType::Add) {
                 //mutate(op->a);
@@ -360,7 +367,9 @@ class MyMutator : public IRMutator {
             }
             else {
 		if(if_div) {
-			Expr newexpr=Dom::make((index.as<Index>()->dom).as<Dom>()->type(),(index.as<Index>()->dom).as<Dom>()->begin,Expr(32));
+			int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
+			int now_num=pre_num*extend_num;
+			Expr newexpr=Dom::make((index.as<Index>()->dom).as<Dom>()->type(),(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
 			index=Index::make(index.as<Index>()->type(),index.as<Index>()->name,newexpr,index.as<Index>()->index_type);			
 		}
                 new_index_list.push_back(index);
