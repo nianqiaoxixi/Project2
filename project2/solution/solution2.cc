@@ -137,6 +137,7 @@ class MyMutator : public IRMutator {
         }
         grad_index = 0;
 	div_num=0;
+	extend_num=0;
         index_use = 0;
         if_remove = false;
 	if_div=false;
@@ -253,6 +254,7 @@ class MyMutator : public IRMutator {
                 int mod_num=(op->b).as<IntImm>()->value();
 		if(if_div && mod_num==div_num)
 			extend_num=div_num;
+		else extend_num=1;
             }
             if (op->op_type == BinaryOpType::Add) {
                 //mutate(op->a);
@@ -366,7 +368,7 @@ class MyMutator : public IRMutator {
                     extra_index.find(index.as<Index>()->name) != extra_index.end()) {
             }
             else {
-		if(if_div) {
+		if(if_div && extend_num) {
 			int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
 			int now_num=pre_num*extend_num;
 			Expr newexpr=Dom::make((index.as<Index>()->dom).as<Dom>()->type(),(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
