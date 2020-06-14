@@ -14,7 +14,6 @@
 
 using namespace Boost::Internal;
 
-std::string index_pool[3] = {"h", "w", "t"};
 class MyPrinter : public IRPrinter {
  public:
     int op_flag;
@@ -130,7 +129,6 @@ class MyMutator : public IRMutator {
     int mode;
     std::map<std::string, Expr> input_var;
 
-    int index_use;
     int div_num;
     int which;
     int extend_num;
@@ -153,7 +151,6 @@ class MyMutator : public IRMutator {
         grad_index = 0;
         div_num=0;
         extend_num=0;
-        index_use = 0;
         which = 0;
         if_div=false;
         data_type = _data_type;
@@ -163,7 +160,6 @@ class MyMutator : public IRMutator {
     }
 
     void reset() {
-        index_use = 0;
         div_num = 0;
         extend_num = 0;
         which = 0;
@@ -316,15 +312,21 @@ class MyMutator : public IRMutator {
                     extend_num=1;
                 }
             }
-            else if (op->op_type == BinaryOpType::Add) {
+            
+            else if (op->op_type == BinaryOpType::Add || op->op_type == BinaryOpType::Sub) {
                 //mutate(op->a);
                 if ((op->a).as<Index>() != nullptr) {
                     if (new_indexs.find((op->a).as<Index>()->name) == new_indexs.end()) {
-                        Expr new_index = Index::make((op->a).as<Index>()->type(), index_pool[index_use++], 
+                        Expr new_index = Index::make((op->a).as<Index>()->type(), "_" + ((op->a).as<Index>()->name), 
                             (op->a).as<Index>()->dom, (op->a).as<Index>()->index_type);
                         new_indexs[(op->a).as<Index>()->name] = new_index;
                         if ((op->b).as<Index>() != nullptr) {
-                            match[(op->b).as<Index>()->name] = Binary::make(index_type, BinaryOpType::Sub, new_index, op->a);
+                            if (op->op_type == BinaryOpType::Add) {
+                                match[(op->b).as<Index>()->name] = Binary::make(index_type, BinaryOpType::Sub, new_index, op->a);
+                            }
+                            else {
+                                match[(op->b).as<Index>()->name] = Binary::make(index_type, BinaryOpType::Sub, op->a, new_index);
+                            }
                         }
                         else if ((op->b).as<IntImm>() != nullptr) {
                             const_match[(op->a).as<Index>()->name] = new_index;
