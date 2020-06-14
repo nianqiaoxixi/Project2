@@ -46,6 +46,20 @@ class MyPrinter : public IRPrinter {
         }
         op_flag = -1;
     }
+
+    void visit(Ref<const Select> op) {
+        bool temp_flag = index_flag;
+        index_flag = true;
+        oss << "(";
+        (op->cond).visit_expr(this);
+        oss << "? ";
+        (op->true_value).visit_expr(this);
+        oss << ": ";
+        (op->false_value).visit_expr(this);
+        oss << ")";
+        index_flag = temp_flag;
+    }
+
     void visit(Ref<const Binary> op) {
         if (op->op_type == BinaryOpType::Add || op->op_type == BinaryOpType::Sub) {
             oss << "(";
@@ -114,19 +128,20 @@ class MyMutator : public IRMutator {
     std::vector<std::string> grad;
     int grad_index;
     int mode;
-    int div_num;
-    int extend_num;
-    bool if_remove;
-    bool if_div;
     std::map<std::string, Expr> input_var;
 
     int index_use;
+    int div_num;
+    int which;
+    int extend_num;
+    bool if_div;
     std::map<std::string, Expr> match;
     std::map<std::string, Expr> match_dom;
+    std::map<std::string, Expr> const_match;
     std::map<std::string, Expr> left_index;
     std::map<std::string, Expr> extra_index;
     std::map<std::string, Expr> new_indexs;
-    std::map<std::string, Expr> origin_index;
+    std::vector<std::vector<Expr>> origin_index;
 
     MyMutator(std::string _out, std::vector<std::string> _grad, Type _data_type, Type _index_type): IRMutator() {
         mode = 0;
@@ -136,11 +151,11 @@ class MyMutator : public IRMutator {
             src_expr.push_back(Expr(0));
         }
         grad_index = 0;
-	div_num=0;
-	extend_num=0;
+        div_num=0;
+        extend_num=0;
         index_use = 0;
-        if_remove = false;
-	if_div=false;
+        which = 0;
+        if_div=false;
         data_type = _data_type;
         index_type = _index_type;
         Expr expr = Expr(0);
@@ -149,12 +164,17 @@ class MyMutator : public IRMutator {
 
     void reset() {
         index_use = 0;
+        div_num = 0;
+        extend_num = 0;
+        which = 0;
+        if_div = false;
         match.erase(match.begin(), match.end());
         match_dom.erase(match_dom.begin(), match_dom.end());
+        const_match.erase(const_match.begin(), const_match.end());
         left_index.erase(left_index.begin(), left_index.end());
         extra_index.erase(extra_index.begin(), extra_index.end());
         new_indexs.erase(new_indexs.begin(), new_indexs.end());
-        origin_index.erase(origin_index.begin(), origin_index.end());
+        origin_index.clear();
     }
 
     Expr visit(Ref<const Var> op) override {
@@ -163,6 +183,7 @@ class MyMutator : public IRMutator {
             case 1:
                 if (op->name == grad[grad_index]) {
                     std::vector<Expr> new_args;
+                    origin_index.push_back(op->args);
                     for (auto arg : op->args) {
                         mode = 3;
                         new_args.push_back(mutate(arg));
@@ -177,13 +198,7 @@ class MyMutator : public IRMutator {
                 }
                 else if (op->name == out) {
                     //get the out Expr from dst
-                    std::vector<Expr> new_args;
-                    for (auto arg : op->args) {
-                        mode = 5;
-                        new_args.push_back(mutate(arg));
-                    }
-                    mode = 1;
-                    dst_expr = Var::make(op->type(), ("d" + out), new_args, op->shape);
+                    dst_expr = Var::make(op->type(), ("d" + out), op->args, op->shape);
                 }
                 else {
                     input_var[op->name] = op;
@@ -192,7 +207,48 @@ class MyMutator : public IRMutator {
             //change the two Expr
             case 2:
                 if (op->name == grad[grad_index]) {
-                    return dst_expr;
+                    Ref<const Var> dst = dst_expr.as<Var>();
+                    std::vector<Expr> new_args;
+                    bool flag = false;
+                    Expr condition;
+                    for (unsigned int i = 0; i < (dst->args).size(); i++) {
+                        std::string name = (dst->args)[i].as<Index>()->name;
+                        if (new_indexs.find(name) != new_indexs.end()) {
+                            mode = 5;
+                            Expr expr = mutate(origin_index[which][i]);
+                            if (expr.as<Dom>() == nullptr) {
+                                if (!flag) {
+                                    flag = true;
+                                    condition = Compare::make(index_type, CompareOpType::GE, expr, Expr(0));
+                                    condition = Binary::make(index_type, BinaryOpType::And, condition,
+                                        Compare::make(index_type, CompareOpType::LT, expr, Expr((dst->shape)[i])));
+                                }
+                                else {
+                                    condition = Binary::make(index_type, BinaryOpType::And, condition,
+                                        Compare::make(index_type, CompareOpType::GE, expr, Expr(0)));
+                                    condition = Binary::make(index_type, BinaryOpType::And, condition,
+                                        Compare::make(index_type, CompareOpType::LT, expr, Expr((dst->shape)[i])));
+                                }
+                                new_args.push_back(expr);
+                            }
+                            else {
+                                new_args.push_back((dst->args)[i]);
+                            }
+                        }
+                        else {
+                            new_args.push_back((dst->args)[i]);
+                        }
+                        mode = 2;
+
+                    }
+                    which++;
+                    Expr var = Var::make(dst->type(), dst->name, new_args, dst->shape);
+                    if (flag) {
+                        return Select::make(index_type, condition, var, Expr(0));
+                    }
+                    else {
+                        return var;
+                    }
                 }
                 else if (op->name == out) {
                     for (auto arg : op->args) {
@@ -233,10 +289,7 @@ class MyMutator : public IRMutator {
                 left_index[op->name] = op;
                 break;
             case 5:
-                if (origin_index.find(op->name) != origin_index.end()) {
-                    return mutate(origin_index[op->name]);
-                }
-                break;
+                return new_indexs[op->name];
         }
         if (match.find(op->name) != match.end()) {
             return match[op->name];
@@ -248,15 +301,22 @@ class MyMutator : public IRMutator {
         if (mode == 3) {
             if (op->op_type == BinaryOpType::Div) {
                 if_div=true;
-		div_num=(op->b).as<IntImm>()->value();
+                if ((op->b).as<IntImm>() != nullptr) 
+                    div_num=(op->b).as<IntImm>()->value();
             }
-	    if (op->op_type == BinaryOpType::Mod) {
-                int mod_num=(op->b).as<IntImm>()->value();
-		if(if_div && mod_num==div_num)
-			extend_num=div_num;
-		else extend_num=1;
+            else if (op->op_type == BinaryOpType::Mod) {
+                int mod_num = 0;
+                if ((op->b).as<IntImm>() != nullptr) {
+                    mod_num = (op->b).as<IntImm>()->value();
+                }
+                if(if_div && mod_num==div_num){
+                    extend_num=div_num;
+                }
+                else {
+                    extend_num=1;
+                }
             }
-            if (op->op_type == BinaryOpType::Add) {
+            else if (op->op_type == BinaryOpType::Add) {
                 //mutate(op->a);
                 if ((op->a).as<Index>() != nullptr) {
                     if (new_indexs.find((op->a).as<Index>()->name) == new_indexs.end()) {
@@ -266,9 +326,8 @@ class MyMutator : public IRMutator {
                         if ((op->b).as<Index>() != nullptr) {
                             match[(op->b).as<Index>()->name] = Binary::make(index_type, BinaryOpType::Sub, new_index, op->a);
                         }
-                        else if ((op->b).as<IntImm>() != nullptr || (op->b).as<FloatImm>() != nullptr) {
-                            origin_index[(op->a).as<Index>()->name] = Binary::make(op->type(), 
-                                op->op_type, new_index, op->b);
+                        else if ((op->b).as<IntImm>() != nullptr) {
+                            const_match[(op->a).as<Index>()->name] = new_index;
                         }
                         return new_index;
                     }
@@ -283,9 +342,13 @@ class MyMutator : public IRMutator {
         else if (mode == 5) {
             if ((op->b).as<IntImm>() != nullptr || (op->b).as<FloatImm>() != nullptr || (op->b).as<UIntImm>() != nullptr) {
                 if (op->op_type == BinaryOpType::Add) {
-                    return Binary::make(index_type, BinaryOpType::Sub, op->a, op->b);
+                    return Binary::make(index_type, BinaryOpType::Sub, mutate(op->a), op->b);
+                }
+                else if (op->op_type == BinaryOpType::Sub) {
+                    return Binary::make(index_type, BinaryOpType::Add, mutate(op->a), op->b);
                 }
             }
+            return Dom::make(index_type, 0, 1);
         }
         if (op->op_type == BinaryOpType::Mul) {
             if ((op->a).as<Var>() != nullptr && (op->b).as<Var>() != nullptr){
@@ -365,24 +428,25 @@ class MyMutator : public IRMutator {
 
         for (auto index : op->index_list) {
             if (match.find(index.as<Index>()->name) != match.end() ||
-                    extra_index.find(index.as<Index>()->name) != extra_index.end()) {
+                    extra_index.find(index.as<Index>()->name) != extra_index.end() ||
+                    const_match.find(index.as<Index>()->name) != const_match.end()) {
             }
             else {
-		if(if_div && extend_num) {
-			int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
-			int now_num=pre_num*extend_num;
-			Expr newexpr=Dom::make((index.as<Index>()->dom).as<Dom>()->type(),(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
-			index=Index::make(index.as<Index>()->type(),index.as<Index>()->name,newexpr,index.as<Index>()->index_type);			
-		}
+                if(if_div && extend_num) {
+                    int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
+                    int now_num=pre_num*extend_num;
+                    Expr newexpr=Dom::make(index_type,(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
+                    index=Index::make(index_type,index.as<Index>()->name,newexpr,index.as<Index>()->index_type);            
+                }
                 new_index_list.push_back(index);
-		
+        
             }
         }
-	
+    
         for (it = new_indexs.begin(); it != new_indexs.end(); it++) {
-            	new_index_list.push_back(it->second);
+                new_index_list.push_back(it->second);
         }
-	
+    
         return LoopNest::make(new_index_list, new_body_list);
     }
 

@@ -218,8 +218,9 @@ class GroupNode : public IRNode {
  * inherited from Halide
  */ 
 class IntImm : public ExprNode, public std::enable_shared_from_this<IntImm> {
- public:
+ private:
     int64_t value_;
+ public:
     IntImm(Type _type, const int64_t _value) : ExprNode(_type, IRNodeType::IntImm), value_(_value)  {}
 
     /**
@@ -230,7 +231,7 @@ class IntImm : public ExprNode, public std::enable_shared_from_this<IntImm> {
     }
     void value_change(const int64_t k)
     {
-    	value_=value_*k;
+        value_=value_*k;
     }
     Expr mutate_expr(IRMutator *mutator) const;
     void visit_node(IRVisitor *visitor) const;
