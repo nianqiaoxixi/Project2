@@ -230,14 +230,14 @@ class MyMutator : public IRMutator {
                                 new_args.push_back(expr);
                             }
                             else {
-                                new_args.push_back((dst->args)[i]);
+                                new_args.push_back(mutate((dst->args)[i]));
                             }
                         }
                         else if (if_div && extend_num && name == div_name) {
                             new_args.push_back(div_expr);
                         }
                         else {
-                            new_args.push_back((dst->args)[i]);
+                            new_args.push_back(mutate((dst->args)[i]));
                         }
                         mode = 2;
 
@@ -314,12 +314,14 @@ class MyMutator : public IRMutator {
                 if ((op->b).as<IntImm>() != nullptr) {
                     mod_num = (op->b).as<IntImm>()->value();
                 }
-                if(if_div && mod_num==div_num){
-                    extend_num=div_num;
+                if(if_div && (op->a).as<Index>() != nullptr && 
+                    (op->a).as<Index>()->name == div_name && mod_num==div_num){
+                    extend_num = div_num;
                     Expr expr1 = Index::make(index_type, "_" + div_name,
                         Dom::make(index_type, 0, extend_num), div_expr.as<Index>()->index_type);
                     Expr expr2 = Binary::make(index_type, BinaryOpType::Mul, div_expr, Expr(extend_num));
                     div_expr = Binary::make(index_type, BinaryOpType::Add, expr2, expr1);
+                    new_indexs["_" + div_name] = expr1;
                     return expr1;
                 }
                 else {
@@ -432,32 +434,9 @@ class MyMutator : public IRMutator {
                         indexList.push_back((op->src).as<Var>()->args[i]);
                         shapeList.push_back((op->src).as<Var>()->shape[i]);
                     }
-                }
-                new_dst = Var::make(data_type, "d" + grad[grad_index], indexList, shapeList);
-                std::vector<Expr> indexList1;
-                std::vector<size_t> shapeList1;
-                for (size_t i = 0; i < (op->dst).as<Var>()->args.size(); i++) {
-                    if(f){
-                        Expr new_dom=Dom::make(index_type,Expr(0),Expr((op->dst).as<Var>()->shape[i]));
-                        Expr new_bi1 = Binary::make(data_type, BinaryOpType::Mul, (op->dst).as<Var>()->args[i], Expr(extend_num));
-                        Expr new_dom1=Dom::make(index_type,Expr(0),Expr(extend_num));
-                        Expr new_index = Index::make(index_type, "_" + ((((op->dst).as<Var>()->args[i]).as<Binary>()->a).as<Var>()->name), 
-                                new_dom1, ((op->dst).as<Var>()->args[i]).as<Index>()->index_type);
-                        Expr new_bi2 = Binary::make(data_type, BinaryOpType::Add, new_bi1, new_index);
-                        indexList.push_back(new_bi2);
-                        shapeList.push_back((op->dst).as<Var>()->shape[i]);
-                    }
-                    else {
-                        indexList.push_back((op->dst).as<Var>()->args[i]);
-                        shapeList.push_back((op->dst).as<Var>()->shape[i]);
-                    }
-                }
-                new_src = Var::make(data_type, "d" + out, indexList1, shapeList1);
-            }
-            else {*/
-                new_src = Binary::make(data_type, BinaryOpType::Add, temp_expr, mutate(op->src));
-                new_dst = mutate(op->dst);
-            //}
+                }*/
+            new_src = Binary::make(data_type, BinaryOpType::Add, temp_expr, mutate(op->src));
+            new_dst = mutate(op->dst);
         }
         mode = 0;
         return Move::make(new_dst, new_src, op->move_type);
@@ -500,16 +479,13 @@ class MyMutator : public IRMutator {
             }
             else {
                 new_index_list.push_back(index);
-                if(if_div && extend_num) {
-                    //int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
-                    //int now_num=pre_num*extend_num;
-                    Expr new_dom=Dom::make(index.as<Index>()->type(),(index.as<Index>()->dom).as<Dom>()->begin,Expr(extend_num));
-                    Expr new_index = Index::make(index.as<Index>()->type(), "_" + ((index.as<Index>())->name), 
-                            new_dom, index.as<Index>()->index_type);
-                    new_index_list.push_back(new_index);
-                    //Expr newexpr=Dom::make(index_type,(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
-                    //index=Index::make(index_type,index.as<Index>()->name,newexpr,index.as<Index>()->index_type);            
-                }
+                /*
+                if(if_div && extend_num && (((index.as<Index>())->name) == div_name)) {
+                    int pre_num=((index.as<Index>()->dom).as<Dom>()->extent).as<IntImm>()->value();
+                    int now_num=pre_num*extend_num;
+                    Expr newexpr=Dom::make(index_type,(index.as<Index>()->dom).as<Dom>()->begin,Expr(now_num));
+                    index=Index::make(index_type,index.as<Index>()->name,newexpr,index.as<Index>()->index_type);            
+                }*/
             }
         }
     
